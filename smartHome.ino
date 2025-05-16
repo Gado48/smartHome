@@ -1,35 +1,33 @@
 #include <DHT.h>
 #include <WiFi.h>
 #include <LiquidCrystal.h>
-#include <BlynkSimpleEsp32.h> 
 #include <TimeLib.h>
 
-#define BLYNK_TEMPLATE_ID           "TMPxxxxxx"
-#define BLYNK_TEMPLATE_NAME         "Device"
-#define BLYNK_AUTH_TOKEN            "YourAuthToken"
+#define BLYNK_TEMPLATE_ID           "TMPL2wc_ezJ4A"
+#define BLYNK_TEMPLATE_NAME         "first project"
+#define BLYNK_AUTH_TOKEN            "84PQFAHTugaI3l47l78hbKiMxSBjZ4i9"
+
+#include <BlynkSimpleEsp32.h> 
 
 // WiFi + Blynk credentials
-char ssid[] = "eco";
-char pass[] = "ecoproject001";
+char ssid[] = "tel";
+char pass[] = "11110000";
 
 // Pin Definitions
 #define gasPin 34
-#define gasAlarm 32
+#define gasAlarm 13
 #define tempPin 17
 #define DHTTYPE DHT11
 #define acRelay 22
 #define heaterRelay 23
+#define lightRelay 27 
 
 #define load1Pot 35   // Air Conditioner
 #define load2Pot 32   // Water Heater
 #define load3Pot 33   // Lighting & Sockets
 
-#define relay1 25     // AC relay
-#define relay2 26     // Heater relay
-#define relay3 27     // Lights relay
-
-#define light1 2   
-#define light2 4   
+#define light1 26   
+#define light2 25   
 #define light3 5  
 #define light4 16  
 
@@ -48,9 +46,7 @@ void setup() {
   pinMode(gasAlarm, OUTPUT);
   pinMode(acRelay, OUTPUT);
   pinMode(heaterRelay, OUTPUT);
-  pinMode(relay1, OUTPUT);
-  pinMode(relay2, OUTPUT);
-  pinMode(relay3, OUTPUT);
+  pinMode(lightRelay, OUTPUT);
 
   dht.begin();
   lcd.begin(16, 2);
@@ -66,7 +62,10 @@ void loop() {
 
   gasCalc();
   tempCalc();
+  autoLightning()
   loadManagement();
+  nightLight();
+  delay(10);
 }
 
 // -------------------- GAS FUNCTION --------------------
@@ -74,11 +73,22 @@ void gasCalc() {
   gasValue = analogRead(gasPin);
   Serial.print("Gas Value: ");
   Serial.println(gasValue);
+  Blynk.virtualWrite(V6, gasValue);
 
-  if (gasValue > 4000) {
+  if (gasValue > 3000) {
     digitalWrite(gasAlarm, HIGH);
+    Blynk.logEvent("gas_alert", "Gas Leak Detected!");
   } else {
-    digitalWrite(gasAlarm, LOW);  // FIXED: should turn off if below threshold
+    digitalWrite(gasAlarm, LOW);
+    Serial.println("led off");
+  }
+}
+// -------------------- LIGHTNING FUNCTION ---------------
+void nightLight(){
+  if (hour() >= 19 || hour() < 6) {
+  digitalWrite(light4, HIGH); // Night Light ON
+  } else {
+  digitalWrite(light4, LOW);  // OFF in daytime
   }
 }
 
@@ -86,6 +96,9 @@ void gasCalc() {
 void tempCalc() {
   float h = dht.readHumidity();
   float t = dht.readTemperature();
+
+  Blynk.virtualWrite(V4, t);
+  Blynk.virtualWrite(V5, h);
 
   if (isnan(h) || isnan(t)) {
     Serial.println("DHT Read failed");
@@ -108,6 +121,15 @@ void tempCalc() {
   }
 }
 
+// -------------------- AUTO LIGHTNING ------------------
+void autoLightning(){
+  if (hour() >= 19 || hour() < 6) {
+  digitalWrite(light4, HIGH); // Night Light ON
+  } else {
+  digitalWrite(light4, LOW);  // OFF in daytime
+  }
+}
+
 // -------------------- DSM FUNCTION --------------------
 void loadManagement() {
   int l1 = analogRead(load1Pot);
@@ -125,31 +147,31 @@ void loadManagement() {
   int threshold = 2000;
 
   // All ON initially
-  digitalWrite(relay1, HIGH);
-  digitalWrite(relay2, HIGH);
-  digitalWrite(relay3, HIGH);
+  digitalWrite(acRelay, HIGH);
+  digitalWrite(heaterRelay, HIGH);
+  digitalWrite(lightRelay, HIGH);
 
   // Progressive Load Shedding
   if (totalLoad > threshold) {
-    digitalWrite(relay1, LOW); // Cut AC first
+    digitalWrite(acRelay, LOW); // Cut AC first
     lcd.setCursor(0, 1);
     lcd.print("Cut: AC        ");
   }
 
   if (totalLoad > threshold + 500) {
-    digitalWrite(relay2, LOW); // Then Water Heater
+    digitalWrite(heaterRelay, LOW); // Then Water Heater
     lcd.setCursor(0, 1);
     lcd.print("Cut: AC & WH   ");
   }
 
   if (totalLoad > threshold + 1000) {
-    digitalWrite(relay3, LOW); // Finally Lights
+    digitalWrite(lightRelay, LOW); // Finally Lights
     lcd.setCursor(0, 1);
     lcd.print("All Loads Cut  ");
   }
 
   // Display total load
-  lcd.clear();
+  lcd.clear()
   lcd.setCursor(0, 0);
   lcd.print("Load: ");
   lcd.print(totalLoad);
@@ -158,20 +180,25 @@ void loadManagement() {
 
 BLYNK_WRITE(V0) {
   int state = param.asInt();
-  digitalWrite(light1, state);
+  analogWrite(light1, state);
 }
 
 BLYNK_WRITE(V1) {
   int state = param.asInt();
-  digitalWrite(light2, state);
+  analogWrite(light2, state);
 }
 
 BLYNK_WRITE(V2) {
   int state = param.asInt();
-  digitalWrite(light3, state);
+  analogWrite(light3, state);
 }
 
 BLYNK_WRITE(V3) {
   int state = param.asInt();
-  digitalWrite(light4, state);
+  Serial.println(state);
+  analogWrite(light4, state);
+  // Serial.println("working");
+  if(state){
+    Serial.println("on");
+  }
 }
