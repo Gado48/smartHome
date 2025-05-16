@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <LiquidCrystal.h>
 #include <BlynkSimpleEsp32.h> 
+#include <TimeLib.h>
 
 #define BLYNK_TEMPLATE_ID           "TMPxxxxxx"
 #define BLYNK_TEMPLATE_NAME         "Device"
@@ -74,7 +75,7 @@ void gasCalc() {
   Serial.print("Gas Value: ");
   Serial.println(gasValue);
 
-  if (gasValue > 250) {
+  if (gasValue > 4000) {
     digitalWrite(gasAlarm, HIGH);
   } else {
     digitalWrite(gasAlarm, LOW);  // FIXED: should turn off if below threshold
@@ -148,6 +149,7 @@ void loadManagement() {
   }
 
   // Display total load
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Load: ");
   lcd.print(totalLoad);
