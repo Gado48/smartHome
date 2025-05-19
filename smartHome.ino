@@ -15,27 +15,30 @@ char pass[] = "11110000";
 
 // Pin Definitions
 #define gasPin 34
-#define gasAlarm 13
+// #define gasAlarm 13
 #define tempPin 17
 #define DHTTYPE DHT11
 #define acRelay 22
 #define heaterRelay 23
-#define lightRelay 27 
+// #define lightRelay 27 
 
 #define load1Pot 35   // Air Conditioner
 #define load2Pot 32   // Water Heater
 #define load3Pot 33   // Lighting & Sockets
 
-#define light1 26   
-#define light2 25   
+#define light1 36   
+#define light2 1   
 #define light3 5  
 #define light4 16  
+#define light5 18
 
 // Initialize objects
 DHT dht(tempPin, DHTTYPE);
 LiquidCrystal lcd(14, 12, 13, 19, 18, 5); // RS, E, D4, D5, D6, D7
 
 int gasValue;
+int acManual;
+int heaterManual;
 
 void setup() {
   Serial.begin(115200);
@@ -43,10 +46,9 @@ void setup() {
 
   // Sensor and actuator pins
   pinMode(gasPin, INPUT);
-  pinMode(gasAlarm, OUTPUT);
+  // pinMode(gasAlarm, OUTPUT);
   pinMode(acRelay, OUTPUT);
   pinMode(heaterRelay, OUTPUT);
-  pinMode(lightRelay, OUTPUT);
 
   dht.begin();
   lcd.begin(16, 2);
@@ -55,6 +57,7 @@ void setup() {
   pinMode(light2, OUTPUT);
   pinMode(light3, OUTPUT);
   pinMode(light4, OUTPUT);
+  pinMode(light5, OUTPUT);
 }
 
 void loop() {
@@ -62,8 +65,8 @@ void loop() {
 
   gasCalc();
   tempCalc();
-  autoLightning()
-  loadManagement();
+  autoLightning();
+  // loadManagement();
   nightLight();
   delay(10);
 }
@@ -73,13 +76,13 @@ void gasCalc() {
   gasValue = analogRead(gasPin);
   Serial.print("Gas Value: ");
   Serial.println(gasValue);
-  Blynk.virtualWrite(V6, gasValue);
+  Blynk.virtualWrite(V9, gasValue);
 
-  if (gasValue > 3000) {
-    digitalWrite(gasAlarm, HIGH);
+  if (gasValue > 4000) {
+    // digitalWrite(gasAlarm, HIGH);
     Blynk.logEvent("gas_alert", "Gas Leak Detected!");
   } else {
-    digitalWrite(gasAlarm, LOW);
+    // digitalWrite(gasAlarm, LOW);
     Serial.println("led off");
   }
 }
@@ -97,8 +100,8 @@ void tempCalc() {
   float h = dht.readHumidity();
   float t = dht.readTemperature();
 
-  Blynk.virtualWrite(V4, t);
-  Blynk.virtualWrite(V5, h);
+  Blynk.virtualWrite(V7, t);
+  Blynk.virtualWrite(V8, h);
 
   if (isnan(h) || isnan(t)) {
     Serial.println("DHT Read failed");
@@ -108,16 +111,20 @@ void tempCalc() {
   Serial.print("Temp: ");
   Serial.print(t);
   Serial.println("°C");
-
-  if (t > 25) {
-    digitalWrite(heaterRelay, LOW);
-    digitalWrite(acRelay, HIGH);
-  } else if (t < 16) {
-    digitalWrite(heaterRelay, HIGH);
-    digitalWrite(acRelay, LOW);
-  } else {
-    digitalWrite(heaterRelay, LOW);
-    digitalWrite(acRelay, LOW);
+  if (acManual == LOW || heaterManual == LOW){
+    if (t > 25) {
+      digitalWrite(heaterRelay, LOW);
+      digitalWrite(acRelay, HIGH);
+    } else if (t < 16) {
+      digitalWrite(heaterRelay, HIGH);
+      digitalWrite(acRelay, LOW);
+    } else {
+      digitalWrite(heaterRelay, LOW);
+      digitalWrite(acRelay, LOW);
+    }
+  }
+  else{
+    //manual control
   }
 }
 
@@ -149,7 +156,6 @@ void loadManagement() {
   // All ON initially
   digitalWrite(acRelay, HIGH);
   digitalWrite(heaterRelay, HIGH);
-  digitalWrite(lightRelay, HIGH);
 
   // Progressive Load Shedding
   if (totalLoad > threshold) {
@@ -165,13 +171,17 @@ void loadManagement() {
   }
 
   if (totalLoad > threshold + 1000) {
-    digitalWrite(lightRelay, LOW); // Finally Lights
+    digitalWrite(light1, LOW);
+    digitalWrite(light2, LOW);
+    digitalWrite(light3, LOW);
+    digitalWrite(light4, LOW);
+    digitalWrite(light5, LOW);
     lcd.setCursor(0, 1);
     lcd.print("All Loads Cut  ");
   }
 
   // Display total load
-  lcd.clear()
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Load: ");
   lcd.print(totalLoad);
@@ -200,5 +210,32 @@ BLYNK_WRITE(V3) {
   // Serial.println("working");
   if(state){
     Serial.println("on");
+  }
+}
+
+BLYNK_WRITE(V4) {
+  int state = param.asInt();
+  analogWrite(light5, state);
+}
+
+BLYNK_WRITE(V5){
+  int state = param.asInt();
+  if (state){
+    acManual = HIGH;
+    analogWrite(acRelay, state);
+  }
+  else{
+    acManual = LOW;
+  }
+}
+
+BLYNK_WRITE(V6){
+  int state = param.asInt();
+  if (state){
+    heaterManual = HIGH;
+    analogWrite(heaterRelay, state);
+  }
+  else{
+    heaterManual = LOW;
   }
 }
